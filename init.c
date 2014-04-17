@@ -11,6 +11,8 @@
 
 	init should only do the most basic tasks to make the system useable.
 */
+#include <stdio.h>
+#include <stdlib.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -32,7 +34,6 @@ enum halt_action
 };
 
 void halt(enum halt_action action);
-void puts(const char *str);
 int spawn_getty(int i);
 void handle_signal(int signal);
 
@@ -93,26 +94,6 @@ int main(int argc, char *argv[])
 			//fatal = 1;
 		}
 	}
-
-	/*i still did not decide if i want a singleuser mode, i tend to remove it*/
-//	if (fatal)
-//	{
-//		int i;
-//		char cd[] = " 1"; /*countdown string*/
-//		/*if a fatal error occured drop into singleuser bash for now*/
-//		puts("init: dropping to singleuser shell\n");
-//		execl(shell, shell, minus, NULL);
-//		puts("init: opening singleuser shell failed, rebooting in");
-//		/*countdown*/
-//		for (i=5; i > 0; i--)
-//		{
-//			cd[1] = '0'+i;
-//			puts(cd);
-//			sleep(1);
-//		}
-//		puts("\n");
-//		halt(REBOOT);
-//	}
 
 	/*spawn getty/login (Important!)*/
 	for ( i=0; i < NGETTY; i++ )
@@ -184,14 +165,6 @@ void halt(enum halt_action action)
 			_exit(1234567890);
 	}
 	_exit(1);
-}
-
-void puts(const char *str)
-{
-	int len;
-
-	for( len = 0; str[len]; len++ );
-	write(1, str, len);
 }
 
 void handle_signal(int signal)
