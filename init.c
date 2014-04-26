@@ -1,12 +1,9 @@
 /*
-	minimalistic init: SInit (shall not exceed 140 SLOC while doing everything it needs to do)
-	This file is part of rbrc, an opensource ruby init suite.
-	It was made for rbrc, has no dependencies on it though.
-
+	minimalistic init: SInit (initializing your system with just 140 SLOC)
+	
 	What this does:
 		1. be process one
-		2. execute rc scripts to setup system (mounting devices???)
-			(-start rbrc here)
+		2. execute rc scripts to setup system (mounting devices?)
 		3. wait() for zombies
 
 	init should only do the most basic tasks to make the system useable.
@@ -18,7 +15,7 @@
 #include <signal.h>
 #include <sys/reboot.h>
 
-#define NGETTY 1 /*no more than one digit*/
+#define NGETTY 1 /*should be less or equal to ten*/
 #define DEBUG
 
 const char shell[]	= "/bin/sh";
@@ -39,16 +36,16 @@ void handle_signal(int signal);
 
 int main(int argc, char *argv[])
 {
-	int pid, ret, i, fatal;
+	int pid, ret, i;
 	int getty_ids[NGETTY] = {0};
 	int status;
-	fatal = 0;
 
 	/*Say hello from init*/
 	puts("init: SInit\n");
 
 	/*are we root?
 	  are we process one?*/
+	#ifndef DEBUG
 	if ( getuid() != 0 )
 	{
 		puts("init: only root can execute init\n");
@@ -59,6 +56,7 @@ int main(int argc, char *argv[])
 		puts("init: not process 1\n");
 		return 1;
 	}
+	#endif
 
 	/*setup signal handlers*/
 	signal(SIGINT, &handle_signal);
@@ -83,7 +81,7 @@ int main(int argc, char *argv[])
 	if ( pid == -1 )
 	{
 		puts("init: failed to run rc script\n");
-		//fatal = 1;
+		halt(REBOOT);
 	}
 	else 
 	{
@@ -91,7 +89,7 @@ int main(int argc, char *argv[])
 		if (WEXITSTATUS(status)) 
 		{
 			puts("init: rc returned != 0\n"); 
-			//fatal = 1;
+			halt(REBOOT);
 		}
 	}
 
@@ -128,11 +126,12 @@ int spawn_getty(int tty8)
 	}
 	ttyc[8] = (char)(tty8 + '0');
 	ttyc[9] = '\0';
+
 	puts("init: spawning getty on "); puts(ttyc); puts("\n");
 	pid = fork();
 	if (pid == 0)
 	{
-		execl(getty, getty, ttyc+5, NULL); /* + 5 to remove /dev/ */
+		execl(getty, getty, ttyc+5, NULL); /* + 5 to remove /dev/ for agetty */
 		_exit(1); /*exit child process*/
 	}
 
@@ -142,10 +141,10 @@ int spawn_getty(int tty8)
 void halt(enum halt_action action)
 {
 	#ifdef DEBUG
-	_exit(1);
+	_exit(0);
 	#endif
-	/*tell rbrc to stop all services.*/
-	/*bsd calls /etc/rc with shutdown argument*/
+	/*tell rc scripts to stop all services.*/
+	/*bsd calls /etc/rc with shutdown argument, we're gonna do the same*/
 	execl(shell, shell, rc, "shutdown", NULL);
 	/*sync to prevent data loss!*/
 	sync();
@@ -161,8 +160,8 @@ void halt(enum halt_action action)
 			reboot(RB_AUTOBOOT);
 			break;
 		default:
-			puts("init: this shouldn't happen at all, panic time.\n");
-			_exit(1234567890);
+			puts("init: this shouldn't happen, panic time.\n");
+			_exit(1);
 	}
 	_exit(1);
 }
@@ -172,12 +171,14 @@ void handle_signal(int signal)
 	switch(signal)
 	{
 		case SIGHUP:	/*clean ttys*/
+			puts("init: sorry, handling for SIGHUP not yet implemented\n");
 			break;
 		case SIGINT:	/*reboot*/
 			halt(REBOOT);
-		case SIGTERM:	/*killall and go singleuser -> halt for us?*/
+		case SIGTERM:	/*others killall and go to singleuser -> halt for us?*/
 			halt(HALT);
 		case SIGTSTP:	/*block login*/
+			puts("init: sorry, handling for SIGTSTP not yet implemented\n");
 			/*kill all gettys and prevent them from restarting by setting their
 			 *pids in the getty pid array to ourself (1)*/
 			break;

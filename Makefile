@@ -13,3 +13,4 @@ strip:
 
 clean:
 	rm init
+
