@@ -56,8 +56,11 @@ int main(int argc, char *argv[])
 	#endif
 
 	/*setup signal handlers*/
+	signal(SIGHUP, &handle_signal);
 	signal(SIGINT, &handle_signal);
-	
+	signal(SIGTERM, &handle_signal);
+	signal(SIGTSTP, &handle_signal);
+
 	/*deal with basic init*/
 	/*close(0);
 	close(1);*/
