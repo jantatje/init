@@ -38,19 +38,19 @@ int main(int argc, char *argv[])
 	int status;
 
 	/*Say hello from init*/
-	puts("init: SInit\n");
+	puts("init: SInit");
 
 	/*are we root?
 	  are we process one?*/
 	#ifndef DEBUG
 	if ( getuid() != 0 )
 	{
-		puts("init: only root can execute init\n");
+		puts("init: only root can execute init");
 		return 1;
 	}
 	if ( getpid() != 1 )
 	{
-		puts("init: not process 1\n");
+		puts("init: not process 1");
 		return 1;
 	}
 	#endif
@@ -61,23 +61,23 @@ int main(int argc, char *argv[])
 	/*deal with basic init*/
 	/*close(0);
 	close(1);*/
-	setsid();
+	setsid(); /*set session id*/
 
 	/*execute rc script*/
 	/*rc script must be a file, no folder is accepted,
 	  the script can execute files from rc.d if it wants to though*/
-	puts("init: executing rc script\n");
+	puts("init: executing rc script");
 	pid = fork();
 	if ( pid == 0 )
 	{
 		/*dup(0);*/
 		execl(shell, shell, rc, NULL);
-		puts("init: exec failed\n");
+		puts("init: exec failed");
 		_exit(1); /*exit child process*/
 	}
 	if ( pid == -1 )
 	{
-		puts("init: failed to run rc script\n");
+		puts("init: failed to run rc script");
 		halt(REBOOT);
 	}
 	else 
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
 		waitpid(pid, &status, 0);
 		if (WEXITSTATUS(status)) 
 		{
-			puts("init: rc returned != 0\n"); 
+			puts("init: rc returned != 0"); 
 			halt(REBOOT);
 		}
 	}
@@ -95,8 +95,9 @@ int main(int argc, char *argv[])
 		getty_ids[i] = spawn_getty(i);
 
 	/*wait for zombies*/
-	while( (ret = wait(NULL)) )
+	for(;;)
 	{
+		ret = wait(NULL);
 		for (i=0; i < NGETTY; i++)
 		{
 			if (ret == getty_ids[i] || getty_ids[i] == -1)
@@ -106,7 +107,7 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	return 1; /*or since we didn't crash completly should we just halt();?*/
+	return 1; /*something went wrong*/
 }
 
 int spawn_getty(int tty8)
@@ -124,7 +125,7 @@ int spawn_getty(int tty8)
 	ttyc[8] = (char)(tty8 + '0');
 	ttyc[9] = '\0';
 
-	puts("init: spawning getty on "); puts(ttyc); puts("\n");
+	printf("init: spawning getty on %s\n", ttyc);
 	pid = fork();
 	if (pid == 0)
 	{
@@ -149,15 +150,15 @@ void halt(enum halt_action action)
 	switch(action)
 	{
 		case HALT:
-			puts("init: halting...\n");
+			puts("init: halting...");
 			reboot(RB_POWER_OFF);
 			break;
 		case REBOOT:
-			puts("init: rebooting...\n");
+			puts("init: rebooting...");
 			reboot(RB_AUTOBOOT);
 			break;
 		default:
-			puts("init: this shouldn't happen, panic time.\n");
+			puts("init: this shouldn't happen, panic time.");
 			_exit(1);
 	}
 	_exit(1);
@@ -168,19 +169,19 @@ void handle_signal(int signal)
 	switch(signal)
 	{
 		case SIGHUP:	/*clean ttys*/
-			puts("init: sorry, handling for SIGHUP not yet implemented\n");
+			puts("init: sorry, handling for SIGHUP not yet implemented");
 			break;
 		case SIGINT:	/*reboot*/
 			halt(REBOOT);
 		case SIGTERM:	/*others killall and go to singleuser -> halt for us?*/
 			halt(HALT);
 		case SIGTSTP:	/*block login*/
-			puts("init: sorry, handling for SIGTSTP not yet implemented\n");
+			puts("init: sorry, handling for SIGTSTP not yet implemented");
 			/*kill all gettys and prevent them from restarting by setting their
 			 *pids in the getty pid array to ourself (1)*/
 			break;
 		default:
-			puts("init: unhandled signal recieved.\n");
+			puts("init: unhandled signal recieved.");
 			break;
 	}
 }
