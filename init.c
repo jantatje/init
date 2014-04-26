@@ -3,7 +3,7 @@
 	
 	What this does:
 		1. be process one
-		2. execute rc scripts to setup system (mounting devices?)
+		2. execute rc scripts to setup system
 		3. wait() for zombies
 
 	init should only do the most basic tasks to make the system useable.
@@ -15,20 +15,17 @@
 #include <signal.h>
 #include <sys/reboot.h>
 
-#define NGETTY 1 /*should be less or equal to ten*/
-#define DEBUG
+#include "config.h"
 
-const char shell[]	= "/bin/sh";
-const char rc[]		= "/etc/rc";
-const char getty[]	= "/sbin/agetty";
-const char tty[]	= "/dev/tty8";
-const char minus[]	= "-";
-
+/*define actions for halt routine*/
 enum halt_action
 {
 	HALT,
 	REBOOT
 };
+
+const char tty[]	= "/dev/tty8";
+const char minus[]	= "-";
 
 void halt(enum halt_action action);
 int spawn_getty(int i);
