@@ -24,17 +24,18 @@ enum halt_action
 	REBOOT
 };
 
-const char tty[]	= "/dev/tty8";
-const char minus[]	= "-";
-
 void halt(enum halt_action action);
 int spawn_getty(int i);
 void handle_signal(int signal);
 
+const char tty[]	= "/dev/tty8";
+const char minus[]	= "-";
+
+int getty_ids[NGETTY] = {0};
+
 int main(int argc, char *argv[])
 {
 	int pid, ret, i;
-	int getty_ids[NGETTY] = {0};
 	int status;
 
 	/*Say hello from init*/
@@ -98,15 +99,18 @@ int main(int argc, char *argv[])
 		getty_ids[i] = spawn_getty(i);
 
 	/*wait for zombies*/
-	for(;;)
+	for (;;)
 	{
 		ret = wait(NULL);
-		for (i=0; i < NGETTY; i++)
+		for ( i = 0; i < NGETTY; i++ )
 		{
 			if (ret == getty_ids[i] || getty_ids[i] == -1)
 				getty_ids[i] = spawn_getty(i);
-			else
+			else if (ret > 0)
 				puts("init: killed a zombie!");
+			else
+				//puts("init: no child processes");
+				memset(getty_ids, -1, sizeof(*getty_ids) * NGETTY);
 		}
 	}
 
@@ -120,7 +124,7 @@ int spawn_getty(int tty8)
 	char ttyc[10];
 	/*copy tty string and replace number*/
 	i = 0;
-	while(tty[i]) 
+	while( tty[i] ) 
 	{
 		ttyc[i] = tty[i];
 		i++;
@@ -130,7 +134,7 @@ int spawn_getty(int tty8)
 
 	printf("init: spawning getty on %s\n", ttyc);
 	pid = fork();
-	if (pid == 0)
+	if ( pid == 0 )
 	{
 		execl(getty, getty, ttyc+5, NULL); /* + 5 to remove /dev/ for agetty */
 		_exit(1); /*exit child process*/
@@ -150,7 +154,7 @@ void halt(enum halt_action action)
 	/*sync to prevent data loss!*/
 	sync();
 	/*halt here*/
-	switch(action)
+	switch( action )
 	{
 		case HALT:
 			puts("init: halting...");
@@ -169,10 +173,25 @@ void halt(enum halt_action action)
 
 void handle_signal(int signal)
 {
-	switch(signal)
+	int i, ret;
+
+	switch( signal )
 	{
 		case SIGHUP:	/*clean ttys*/
-			puts("init: sorry, handling for SIGHUP not yet implemented");
+			puts("init: respawning all gettys");
+			for ( i = 0; i < NGETTY; i++ )
+			{
+				/*dont ever send kill(-1, SIGTERM); (kills all processes)*/
+				if (getty_ids[i] < 0)
+					break;
+				/*send SIGTERM, try again with SIGKILL on failure*/
+				if ( (ret = kill(getty_ids[i], SIGTERM)) )
+					ret = kill(getty_ids[i], SIGKILL);
+				/*wait for the getty*/
+				if ( ret == 0 )
+					wait(NULL);
+				/*main loop will spawn new getties*/
+			}
 			break;
 		case SIGINT:	/*reboot*/
 			halt(REBOOT);
