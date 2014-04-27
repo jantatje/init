@@ -24,17 +24,18 @@ enum halt_action
 	REBOOT
 };
 
-const char tty[]	= "/dev/tty8";
-const char minus[]	= "-";
-
 void halt(enum halt_action action);
 int spawn_getty(int i);
 void handle_signal(int signal);
 
+const char tty[]	= "/dev/tty8";
+const char minus[]	= "-";
+
+int getty_ids[NGETTY] = {0};
+
 int main(int argc, char *argv[])
 {
 	int pid, ret, i;
-	int getty_ids[NGETTY] = {0};
 	int status;
 
 	/*Say hello from init*/
@@ -56,10 +57,8 @@ int main(int argc, char *argv[])
 	#endif
 
 	/*setup signal handlers*/
-	signal(SIGHUP, &handle_signal);
 	signal(SIGINT, &handle_signal);
 	signal(SIGTERM, &handle_signal);
-	signal(SIGTSTP, &handle_signal);
 
 	/*deal with basic init*/
 	/*close(0);
@@ -98,15 +97,17 @@ int main(int argc, char *argv[])
 		getty_ids[i] = spawn_getty(i);
 
 	/*wait for zombies*/
-	for(;;)
+	for (;;)
 	{
 		ret = wait(NULL);
-		for (i=0; i < NGETTY; i++)
+		for ( i = 0; i < NGETTY; i++ )
 		{
 			if (ret == getty_ids[i] || getty_ids[i] == -1)
 				getty_ids[i] = spawn_getty(i);
-			else
+			else if (ret > 0)
 				puts("init: killed a zombie!");
+			else
+				puts("init: no child processes");
 		}
 	}
 
@@ -120,7 +121,7 @@ int spawn_getty(int tty8)
 	char ttyc[10];
 	/*copy tty string and replace number*/
 	i = 0;
-	while(tty[i]) 
+	while( tty[i] ) 
 	{
 		ttyc[i] = tty[i];
 		i++;
@@ -130,7 +131,7 @@ int spawn_getty(int tty8)
 
 	printf("init: spawning getty on %s\n", ttyc);
 	pid = fork();
-	if (pid == 0)
+	if ( pid == 0 )
 	{
 		execl(getty, getty, ttyc+5, NULL); /* + 5 to remove /dev/ for agetty */
 		_exit(1); /*exit child process*/
@@ -150,7 +151,7 @@ void halt(enum halt_action action)
 	/*sync to prevent data loss!*/
 	sync();
 	/*halt here*/
-	switch(action)
+	switch( action )
 	{
 		case HALT:
 			puts("init: halting...");
@@ -169,20 +170,12 @@ void halt(enum halt_action action)
 
 void handle_signal(int signal)
 {
-	switch(signal)
+	switch( signal )
 	{
-		case SIGHUP:	/*clean ttys*/
-			puts("init: sorry, handling for SIGHUP not yet implemented");
-			break;
 		case SIGINT:	/*reboot*/
 			halt(REBOOT);
 		case SIGTERM:	/*others killall and go to singleuser -> halt for us?*/
 			halt(HALT);
-		case SIGTSTP:	/*block login*/
-			puts("init: sorry, handling for SIGTSTP not yet implemented");
-			/*kill all gettys and prevent them from restarting by setting their
-			 *pids in the getty pid array to ourself (1)*/
-			break;
 		default:
 			puts("init: unhandled signal recieved.");
 			break;
