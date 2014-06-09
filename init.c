@@ -40,6 +40,8 @@
 
 #include "config.h"
 
+#define TTY_BUF_LEN 10
+
 /*define actions for halt routine*/
 enum halt_action
 {
@@ -51,7 +53,7 @@ void halt(enum halt_action action);
 int spawn_getty(int i);
 void handle_signal(int signal);
 
-const char tty[]	= "/dev/tty8";
+const char tty[]	= "/dev/tty%i";
 const char minus[]	= "-";
 
 int getty_ids[NGETTY] = {0};
@@ -137,20 +139,14 @@ int main(int argc, char *argv[])
 	return 1; /*something went wrong*/
 }
 
-int spawn_getty(int tty8)
+int spawn_getty(int ttyn)
 {
-	int pid, i;
-	/*TODO: fix this mess, allow more than 10 gettys*/
-	char ttyc[10];
+	int pid, ret;
+	char ttyc[TTY_BUF_LEN];
 	/*copy tty string and replace number*/
-	i = 0;
-	while( tty[i] ) 
-	{
-		ttyc[i] = tty[i];
-		i++;
-	}
-	ttyc[8] = (char)(tty8 + '0');
-	ttyc[9] = '\0';
+	ret = snprintf(ttyc, TTY_BUF_LEN, tty, ttyn);
+	if ( ret >= TTY_BUF_LEN ) /*string was truncated, fail.*/
+		return -1;
 
 	printf("init: spawning getty on %s\n", ttyc);
 	pid = fork();
