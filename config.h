@@ -21,15 +21,6 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  * 
- * minimalistic init: SInit (initializing your system with just 140 SLOC)
- * 
- * What this does:
- * 	1. be process one
- *	2. execute rc scripts to setup system
- * 	3. wait() for zombies
- * 
- * init should only do the most basic tasks to make the system useable.
- * 
  * SInit configuration file
  */
 
