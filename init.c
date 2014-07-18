@@ -37,19 +37,18 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <sys/reboot.h>
+#include <string.h>
 
 #include "config.h"
 
-#define TTY_BUF_LEN 10
-
-/*define actions for halt routine*/
-enum halt_action
+/*define actions for shutdown routine*/
+enum shutdown_action
 {
 	HALT,
 	REBOOT
 };
 
-void halt(enum halt_action action);
+void shutdown(enum shutdown_action action);
 int spawn_getty(int i);
 void handle_signal(int signal);
 
@@ -60,7 +59,7 @@ int getty_ids[NGETTY] = {0};
 
 int main(int argc, char *argv[])
 {
-	int pid, ret, i;
+	int pid, ret, found, i;
 	int status;
 
 	/*Say hello from init*/
@@ -86,8 +85,6 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, &handle_signal);
 
 	/*deal with basic init*/
-	/*close(0);
-	close(1);*/
 	setsid(); /*set session id*/
 
 	/*execute rc script*/
@@ -97,7 +94,6 @@ int main(int argc, char *argv[])
 	pid = fork();
 	if ( pid == 0 )
 	{
-		/*dup(0);*/
 		execl(shell, shell, rc, NULL);
 		puts("init: exec failed");
 		_exit(1); /*exit child process*/
@@ -105,15 +101,15 @@ int main(int argc, char *argv[])
 	if ( pid == -1 )
 	{
 		puts("init: failed to run rc script");
-		halt(REBOOT);
+		shutdown(REBOOT);
 	}
-	else 
+	else
 	{
 		waitpid(pid, &status, 0);
 		if (WEXITSTATUS(status)) 
 		{
-			puts("init: rc returned != 0"); 
-			halt(REBOOT);
+			puts("init: rc returned != 0, rebooting"); 
+			shutdown(REBOOT);
 		}
 	}
 
@@ -124,16 +120,21 @@ int main(int argc, char *argv[])
 	/*wait for zombies*/
 	for (;;)
 	{
+		found = 0;
 		ret = wait(NULL);
 		for ( i = 0; i < NGETTY; i++ )
 		{
 			if (ret == getty_ids[i] || getty_ids[i] == -1)
+			{
 				getty_ids[i] = spawn_getty(i);
-			else if (ret > 0)
-				puts("init: killed a zombie!");
-			else
-				puts("init: no child processes");
+				found = 1;
+				break;
+			}
 		}
+		if (found)
+			continue;
+		else if (ret > 0)
+			puts("init: killed a zombie!");
 	}
 
 	return 1; /*something went wrong*/
@@ -141,11 +142,12 @@ int main(int argc, char *argv[])
 
 int spawn_getty(int ttyn)
 {
+	/*returns -1 on failure, pid on success*/
 	int pid, ret;
-	char ttyc[TTY_BUF_LEN];
+	char ttyc[256]; 
 	/*copy tty string and replace number*/
-	ret = snprintf(ttyc, TTY_BUF_LEN, tty, ttyn);
-	if ( ret >= TTY_BUF_LEN ) /*string was truncated, fail.*/
+	ret = snprintf(ttyc, (sizeof ttyc/sizeof *ttyc), tty, ttyn);
+	if ( ret >= (sizeof ttyc/sizeof *ttyc) ) /*string was truncated, fail.*/
 		return -1;
 
 	printf("init: spawning getty on %s\n", ttyc);
@@ -159,14 +161,19 @@ int spawn_getty(int ttyn)
 	return pid;
 }
 
-void halt(enum halt_action action)
+void shutdown(enum shutdown_action action)
 {
+	/*calls the init script to halt all services, syncs, then halts*/
+	int pid;
+	
 	#ifdef DEBUG
 	_exit(0);
 	#endif
 	/*tell rc scripts to stop all services.*/
 	/*bsd calls /etc/rc with shutdown argument, we're gonna do the same*/
-	execl(shell, shell, rc, "shutdown", NULL);
+	pid = fork();
+	if (pid == 0)
+		execl(shell, shell, rc, "shutdown", NULL);
 	/*sync to prevent data loss!*/
 	sync();
 	/*halt here*/
@@ -181,10 +188,8 @@ void halt(enum halt_action action)
 			reboot(RB_AUTOBOOT);
 			break;
 		default:
-			puts("init: this shouldn't happen, panic time.");
 			_exit(1);
 	}
-	_exit(1);
 }
 
 void handle_signal(int signal)
@@ -192,11 +197,10 @@ void handle_signal(int signal)
 	switch( signal )
 	{
 		case SIGINT:	/*reboot*/
-			halt(REBOOT);
+			shutdown(REBOOT);
 		case SIGTERM:	/*others killall and go to singleuser -> halt for us?*/
-			halt(HALT);
-		default:
-			puts("init: unhandled signal recieved.");
+			shutdown(HALT);
+		default:		/*ignore all other signals*/
 			break;
 	}
 }
